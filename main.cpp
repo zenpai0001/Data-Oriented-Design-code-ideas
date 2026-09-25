@@ -29,18 +29,19 @@ template <typename T> struct data {
 
   // A chunk of memory called through the linux kernel.
   void *map_chunk =
-      mmap(nullptr, data_array.size(), PROT_READ, MAP_PRIVATE, 10, 0);
+      mmap(nullptr, reserve(data_array.size()), PROT_READ, MAP_PRIVATE, 10, 0);
 
   static std::vector<T, std::pmr::polymorphic_allocator<T>>
   data_array(size_t idx) {
     void *ctx;
     void callback(void *ctx);
     bool trigger;
-    return state_machine::ALLOCATE;
+    return data_array(idx)->operator T &(idx) ?: state_machine::ALLOCATE;
   }
 
   static std::vector<s32, std::pmr::polymorphic_allocator<T>> codes(s32 idx) {
     s32 status_code = 0;
+    return codes(idx)->operator s32(idx);
   }
 
   T &operator()(size_t idx) {
@@ -60,7 +61,8 @@ template <typename T> struct data {
       case state_machine ::DECREASE:
         return data_array[idx].popback();
       case state_machine::DESTROY:
-        // TODO: Destroy map_chunk in indices as well.
+        // unmap the mmap map chunk upon destruction.
+        munmap(map_chunk, reserve(data_array.size()));
         return data_array[idx].clear() ?: data_array[idx] = nullptr;
       case state_machine::RECEIVE:
         return &data_array[idx];
